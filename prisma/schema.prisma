@@ -1,0 +1,63 @@
+// Prisma Schema for MessageFlow API
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum EventStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Message {
+  id             String         @id @default(uuid())
+  tenantId       String         @map("tenant_id")
+  conversationId String         @map("conversation_id")
+  to             String         @map("recipient_to")
+  text           String         @map("text_content")
+  status         MessageStatus  @default(QUEUED)
+  queuedAt       DateTime       @default(now()) @map("queued_at")
+  sentAt         DateTime?      @map("sent_at")
+  deliveredAt    DateTime?      @map("delivered_at")
+  readAt         DateTime?      @map("read_at")
+  failedAt       DateTime?      @map("failed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  events         ProviderEvent[]
+
+  @@index([tenantId, conversationId, createdAt, id])
+  @@index([tenantId, id])
+  @@map("messages")
+}
+
+model ProviderEvent {
+  id          String      @id @default(uuid())
+  eventId     String      @unique @map("event_id")
+  messageId   String      @map("message_id")
+  status      EventStatus
+  occurredAt  DateTime    @map("occurred_at")
+  payload     Json?       @map("payload")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  message     Message     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("provider_events")
+}

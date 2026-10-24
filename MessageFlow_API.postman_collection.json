@@ -1,0 +1,366 @@
+{
+  "info": {
+    "name": "MessageFlow API",
+    "_postman_id": "c71a3962-4217-48f8-b394-814cb91dd78e",
+    "description": "Complete Postman collection for MessageFlow API — covering message creation, tenant isolation, cursor pagination, and idempotent provider webhooks.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001",
+      "type": "string"
+    },
+    {
+      "key": "tenantId",
+      "value": "tenant-alpha",
+      "type": "string"
+    },
+    {
+      "key": "messageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "nextCursor",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "1. Service Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "2. Create Message (Tenant Alpha)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) {",
+                  "    pm.collectionVariables.set('messageId', json.id);",
+                  "    console.log('Saved messageId: ' + json.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-tenant-id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"tenant-alpha\",\n  \"conversationId\": \"conv-100\",\n  \"to\": \"+919876543210\",\n  \"text\": \"Your Order #4567 has shipped via Express Delivery.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "messages"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Create Message (Validation Failure - Invalid Phone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-tenant-id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"tenant-alpha\",\n  \"conversationId\": \"conv-100\",\n  \"to\": \"invalid-number\",\n  \"text\": \"Hello\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "messages"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create Message (Missing x-tenant-id - 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"tenant-alpha\",\n  \"conversationId\": \"conv-100\",\n  \"to\": \"+919876543210\",\n  \"text\": \"Hello\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "messages"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get Single Message by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-tenant-id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "messages", "{{messageId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Tenant Isolation Check (Tenant Beta accessing Tenant Alpha - 404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-tenant-id",
+                "value": "tenant-beta"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "messages", "{{messageId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Conversations",
+      "item": [
+        {
+          "name": "7. Get Conversation Messages (Page 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.pagination && json.pagination.nextCursor) {",
+                  "    pm.collectionVariables.set('nextCursor', json.pagination.nextCursor);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-tenant-id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/conversations/conv-100/messages?limit=2",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "conversations", "conv-100", "messages"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "2"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Conversation Messages (Page 2 with Cursor)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-tenant-id",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/conversations/conv-100/messages?limit=2&cursor={{nextCursor}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "conversations", "conv-100", "messages"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "2"
+                },
+                {
+                  "key": "cursor",
+                  "value": "{{nextCursor}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "9. Webhook: DELIVERED (Fast Delivery out-of-order)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-meta-101\",\n  \"messageId\": \"{{messageId}}\",\n  \"status\": \"DELIVERED\",\n  \"occurredAt\": \"2026-10-24T12:15:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "provider"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Webhook: Idempotency (Repeat Duplicate eventId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-meta-101\",\n  \"messageId\": \"{{messageId}}\",\n  \"status\": \"DELIVERED\",\n  \"occurredAt\": \"2026-10-24T12:15:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "provider"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Webhook: Delayed SENT (Records sentAt, no regression)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-meta-102\",\n  \"messageId\": \"{{messageId}}\",\n  \"status\": \"SENT\",\n  \"occurredAt\": \"2026-10-24T12:05:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "provider"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "12. Webhook: READ Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-meta-103\",\n  \"messageId\": \"{{messageId}}\",\n  \"status\": \"READ\",\n  \"occurredAt\": \"2026-10-24T12:20:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "provider"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "13. Webhook: Non-existent Message ID (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"evt-unknown-999\",\n  \"messageId\": \"non-existent-msg-id\",\n  \"status\": \"SENT\",\n  \"occurredAt\": \"2026-10-24T12:00:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "provider"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
